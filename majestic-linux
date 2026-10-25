@@ -24,100 +24,6 @@ EMOJI_FONT_SHA256="6d90152ee0d29e82fe2a87793af5aa4b7ad13e6538360889e141e81ed299e
 EMOJI_SRC="$CACHE_DIR/Twemoji.Mozilla.ttf"
 EMOJI_DST="$PFX/drive_c/windows/Fonts/seguiemj.ttf"
 
-has_emoji() {
-    [ -s "$EMOJI_DST" ] && grep -qsiF 'seguiemj.ttf' "$PFX/system.reg"
-}
-
-find_fonttools_python() {
-    local py
-    for py in /usr/bin/python3 /usr/bin/python python3 python; do
-        command -v "$py" >/dev/null 2>&1 || continue
-        if "$py" -c 'import fontTools' >/dev/null 2>&1; then
-            command -v "$py"
-            return 0
-        fi
-    done
-    return 1
-}
-
-install_emoji() {
-    local py
-    if ! py=$(find_fonttools_python); then
-        echo "Предупреждение: не найден Python с модулем fontTools, эмодзи в лаунчере показываться не будут." >&2
-        echo "Установите пакет (Arch: python-fonttools, Debian/Ubuntu/Fedora: python3-fonttools) и запустите скрипт снова." >&2
-        return 0
-    fi
-
-    mkdir -p "$CACHE_DIR" "$PFX/drive_c/windows/Fonts" "$PFX/drive_c/majestic"
-
-    if [ ! -s "$EMOJI_SRC" ]; then
-        echo "Скачиваю emoji-шрифт (Twemoji Mozilla)..."
-        if ! curl -fL --progress-bar -o "$EMOJI_SRC" "$EMOJI_FONT_URL"; then
-            echo "Предупреждение: не удалось скачать emoji-шрифт." >&2
-            rm -f "$EMOJI_SRC"
-            return 0
-        fi
-    fi
-    if ! printf '%s  %s\n' "$EMOJI_FONT_SHA256" "$EMOJI_SRC" | sha256sum -c --quiet - >/dev/null 2>&1; then
-        echo "Предупреждение: контрольная сумма emoji-шрифта не совпала, пропускаю." >&2
-        rm -f "$EMOJI_SRC"
-        return 0
-    fi
-
-    kill_launcher
-
-    local script="$CACHE_DIR/rename_emoji.py"
-    cat > "$script" <<'PYEOF'
-import sys
-from fontTools.ttLib import TTFont
-
-src, dst = sys.argv[1], sys.argv[2]
-font = TTFont(src)
-name = font["name"]
-
-def put(name_id, text):
-    name.removeNames(nameID=name_id)
-    name.setName(text, name_id, 3, 1, 0x409)
-    name.setName(text, name_id, 1, 0, 0)
-
-put(0, "Emoji artwork: Twemoji, Copyright Twitter, Inc and other contributors, CC-BY 4.0. "
-       "Font: Mozilla twemoji-colr, Apache 2.0. Modified: family name changed.")
-put(1, "Segoe UI Emoji")
-put(2, "Regular")
-put(3, "Local rename of Twemoji Mozilla 0.7.0")
-put(4, "Segoe UI Emoji")
-put(6, "SegoeUIEmoji")
-put(13, "Emoji artwork licensed under CC-BY 4.0; font code under Apache License 2.0.")
-put(14, "https://creativecommons.org/licenses/by/4.0/")
-font.save(dst)
-PYEOF
-    if ! "$py" "$script" "$EMOJI_SRC" "$EMOJI_DST"; then
-        echo "Предупреждение: не удалось подготовить emoji-шрифт." >&2
-        rm -f "$script" "$EMOJI_DST"
-        return 0
-    fi
-    rm -f "$script"
-
-    cat > "$PFX/drive_c/majestic/emoji.reg" <<'EOF'
-Windows Registry Editor Version 5.00
-
-[HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Fonts]
-"Segoe UI Emoji (TrueType)"="seguiemj.ttf"
-EOF
-    if ! protontricks -c 'wine regedit "C:\\majestic\\emoji.reg"' "$APPID"; then
-        echo "Предупреждение: не удалось записать emoji-шрифт в реестр." >&2
-        return 0
-    fi
-
-    local i
-    for i in 1 2 3 4 5 6 7 8 9 10; do
-        has_emoji && return 0
-        sleep 1
-    done
-    echo "Предупреждение: emoji-шрифт не зарегистрировался в реестре префикса." >&2
-    return 0
-}
-
 LAUNCHER_PROC='^[A-Za-z]:\\.*Majestic Launcher\.exe'
 
 pause() {
@@ -309,7 +215,8 @@ ensure_protontricks() {
 install_powershell() {
     echo "Установка powershell в префикс GTA V ($APPID)..."
     protontricks "$APPID" powershell || die "Не удалось установить powershell в префикс."
-    has_powershell || die "powershell не появился в winetricks.log, установка не удалась. Проверьте, что protontricks установлен не через Flatpak, и запустите скрипт снова."
+    has_powershell || die "powershell не появился в winetricks.log, установка не удалась.
+Проверьте, что protontricks не Flatpak-версия, и запустите скрипт снова."
 }
 
 install_launcher() {
@@ -380,10 +287,165 @@ EOF
     die "Патч не применился: в реестре префикса нет обработчика steam://."
 }
 
-find_proton() {
-    local p="$STEAM_ROOT/steamapps/common/Proton - Experimental/proton"
-    [ -x "$p" ] || return 1
-    printf '%s\n' "$p"
+has_emoji() {
+    [ -s "$EMOJI_DST" ] && grep -qsiF 'seguiemj.ttf' "$PFX/system.reg"
+}
+
+find_fonttools_python() {
+    local py
+    for py in /usr/bin/python3 /usr/bin/python python3 python; do
+        command -v "$py" >/dev/null 2>&1 || continue
+        if "$py" -c 'import fontTools' >/dev/null 2>&1; then
+            command -v "$py"
+            return 0
+        fi
+    done
+    return 1
+}
+
+install_emoji() {
+    local py
+    if ! py=$(find_fonttools_python); then
+        echo "Предупреждение: не найден Python с модулем fontTools, эмодзи в лаунчере показываться не будут." >&2
+        echo "Установите пакет (Arch: python-fonttools, Debian/Ubuntu/Fedora: python3-fonttools) и запустите скрипт снова." >&2
+        return 0
+    fi
+
+    mkdir -p "$CACHE_DIR" "$PFX/drive_c/windows/Fonts" "$PFX/drive_c/majestic"
+
+    if [ ! -s "$EMOJI_SRC" ]; then
+        echo "Скачиваю emoji-шрифт (Twemoji Mozilla)..."
+        if ! curl -fL --progress-bar -o "$EMOJI_SRC" "$EMOJI_FONT_URL"; then
+            echo "Предупреждение: не удалось скачать emoji-шрифт." >&2
+            rm -f "$EMOJI_SRC"
+            return 0
+        fi
+    fi
+    if ! printf '%s  %s\n' "$EMOJI_FONT_SHA256" "$EMOJI_SRC" | sha256sum -c --quiet - >/dev/null 2>&1; then
+        echo "Предупреждение: контрольная сумма emoji-шрифта не совпала, пропускаю." >&2
+        rm -f "$EMOJI_SRC"
+        return 0
+    fi
+
+    kill_launcher
+
+    local script="$CACHE_DIR/rename_emoji.py"
+    cat > "$script" <<'PYEOF'
+import sys
+from fontTools.ttLib import TTFont
+
+src, dst = sys.argv[1], sys.argv[2]
+font = TTFont(src)
+name = font["name"]
+
+def put(name_id, text):
+    name.removeNames(nameID=name_id)
+    name.setName(text, name_id, 3, 1, 0x409)
+    name.setName(text, name_id, 1, 0, 0)
+
+put(0, "Emoji artwork: Twemoji, Copyright Twitter, Inc and other contributors, CC-BY 4.0. "
+       "Font: Mozilla twemoji-colr, Apache 2.0. Modified: family name changed.")
+put(1, "Segoe UI Emoji")
+put(2, "Regular")
+put(3, "Local rename of Twemoji Mozilla 0.7.0")
+put(4, "Segoe UI Emoji")
+put(6, "SegoeUIEmoji")
+put(13, "Emoji artwork licensed under CC-BY 4.0; font code under Apache License 2.0.")
+put(14, "https://creativecommons.org/licenses/by/4.0/")
+font.save(dst)
+PYEOF
+    if ! "$py" "$script" "$EMOJI_SRC" "$EMOJI_DST"; then
+        echo "Предупреждение: не удалось подготовить emoji-шрифт." >&2
+        rm -f "$script" "$EMOJI_DST"
+        return 0
+    fi
+    rm -f "$script"
+
+    cat > "$PFX/drive_c/majestic/emoji.reg" <<'EOF'
+Windows Registry Editor Version 5.00
+
+[HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Fonts]
+"Segoe UI Emoji (TrueType)"="seguiemj.ttf"
+EOF
+    if ! protontricks -c 'wine regedit "C:\\majestic\\emoji.reg"' "$APPID"; then
+        echo "Предупреждение: не удалось записать emoji-шрифт в реестр." >&2
+        return 0
+    fi
+
+    local i
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+        has_emoji && return 0
+        sleep 1
+    done
+    echo "Предупреждение: emoji-шрифт не зарегистрировался в реестре префикса." >&2
+    return 0
+}
+
+detect_pkg_manager() {
+    if command -v pacman >/dev/null 2>&1; then
+        echo pacman
+    elif command -v apt-get >/dev/null 2>&1; then
+        echo apt
+    elif command -v dnf >/dev/null 2>&1; then
+        echo dnf
+    else
+        return 1
+    fi
+}
+
+ensure_optional_deps() {
+    local need_gcc=0 need_fonttools=0
+    command -v gcc >/dev/null 2>&1 || need_gcc=1
+    find_fonttools_python >/dev/null 2>&1 || need_fonttools=1
+
+    if [ "$need_gcc" = 0 ] && [ "$need_fonttools" = 0 ]; then
+        return 0
+    fi
+    if [ ! -t 0 ]; then
+        die "Не хватает пакетов для дополнительных функций (gcc, python-fonttools).
+Запустите скрипт из терминала, чтобы установить их."
+    fi
+
+    local pm
+    if ! pm=$(detect_pkg_manager); then
+        die "Не хватает пакетов, а поддерживаемый пакетный менеджер (pacman, apt, dnf) не найден.
+Установите вручную gcc (русский ввод в игре) и python-fonttools (эмодзи в лаунчере) и запустите скрипт снова."
+    fi
+
+    local -a pkgs=() install_cmd=()
+    case "$pm" in
+        pacman)
+            if [ "$need_gcc" = 1 ]; then pkgs+=(gcc); fi
+            if [ "$need_fonttools" = 1 ]; then pkgs+=(python python-fonttools); fi
+            install_cmd=(sudo pacman -S --needed --noconfirm "${pkgs[@]}")
+            ;;
+        apt)
+            if [ "$need_gcc" = 1 ]; then pkgs+=(build-essential); fi
+            if [ "$need_fonttools" = 1 ]; then pkgs+=(python3 python3-fonttools); fi
+            install_cmd=(sudo apt-get install -y "${pkgs[@]}")
+            ;;
+        dnf)
+            if [ "$need_gcc" = 1 ]; then pkgs+=(gcc); fi
+            if [ "$need_fonttools" = 1 ]; then pkgs+=(python3 python3-fonttools); fi
+            install_cmd=(sudo dnf install -y "${pkgs[@]}")
+            ;;
+    esac
+
+    echo "Для дополнительных функций не хватает пакетов (менеджер: $pm):"
+    if [ "$need_gcc" = 1 ]; then echo "  - gcc: русский ввод в игре"; fi
+    if [ "$need_fonttools" = 1 ]; then echo "  - python-fonttools: эмодзи в лаунчере"; fi
+    echo "Будет выполнено: ${install_cmd[*]}"
+
+    local answer
+    read -rp "Установить? [Y/n] " answer || answer=n
+    case "${answer:-Y}" in
+        [yY]|[yY][eE][sS])
+            "${install_cmd[@]}" || die "Ошибка установки пакетов."
+            ;;
+        *)
+            die "Установка отменена. Установите gcc и python-fonttools самостоятельно и запустите скрипт снова."
+            ;;
+    esac
 }
 
 ensure_locale_shim() {
@@ -416,6 +478,10 @@ EOF
 launch_launcher() {
     has_launcher || die "Лаунчер не установлен: $LAUNCHER"
 
+    if ! pgrep -x steam >/dev/null 2>&1; then
+        echo "Предупреждение: Steam не запущен, игра может не запуститься. Запустите Steam и войдите в аккаунт." >&2
+    fi
+
     ln -sfn "$STEAM_ROOT" "$PFX/dosdevices/s:"
 
     mkdir -p "$STATE_DIR"
@@ -428,7 +494,7 @@ launch_launcher() {
 
     echo "Запускаю Majestic Launcher. Лог: $STATE_DIR/launcher.log"
 
-    "${preload_env[@]}" protontricks-launch --appid "$APPID" "$LAUNCHER" -disable-gpu \
+    ${preload_env[@]+"${preload_env[@]}"} protontricks-launch --appid "$APPID" "$LAUNCHER" -disable-gpu \
         </dev/null 2>&1 | tee "$STATE_DIR/launcher.log" || true
 }
 
@@ -441,11 +507,14 @@ main() {
     [ -d "$PFX" ] ||
         die "Префикс GTA V не найден. Запустите GTA V один раз через Steam (Proton Experimental) и повторите."
 
+    echo "majestic-linux $VERSION"
+
     if all_set; then
         if launcher_running; then
             echo "Majestic Launcher уже запущен."
             exit 0
         fi
+        ensure_optional_deps
         has_emoji || install_emoji
         launch_launcher
         exit 0
@@ -455,6 +524,8 @@ main() {
     has_powershell || install_powershell
     has_launcher || install_launcher
     has_patch || patch_prefix
+    ensure_optional_deps
+    has_emoji || install_emoji
 
     kill_launcher
     launch_launcher
