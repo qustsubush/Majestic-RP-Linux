@@ -297,7 +297,9 @@ launch_launcher() {
     ln -sfn "$STEAM_ROOT" "$PFX/dosdevices/s:"
 
     mkdir -p "$STATE_DIR"
-    setsid -f env \
+    echo "Запускаю Majestic Launcher. Лог: $STATE_DIR/launcher.log"
+
+    env \
         STEAM_COMPAT_CLIENT_INSTALL_PATH="$STEAM_ROOT" \
         STEAM_COMPAT_DATA_PATH="$STEAM_ROOT/steamapps/compatdata/$APPID" \
         STEAM_COMPAT_INSTALL_PATH="$STEAM_ROOT/steamapps/common/$GTA_DIR_NAME" \
@@ -306,8 +308,7 @@ launch_launcher() {
         STEAM_COMPAT_APP_ID="$APPID" \
         SteamAppId="$APPID" SteamGameId="$APPID" \
         "$proton" run "$LAUNCHER" -disable-gpu \
-        >"$STATE_DIR/launcher.log" 2>&1 </dev/null
-    sleep 1
+        </dev/null 2>&1 | tee "$STATE_DIR/launcher.log" || true
 }
 
 main() {
