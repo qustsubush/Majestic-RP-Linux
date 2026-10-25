@@ -144,7 +144,7 @@ gta_installed() {
 }
 
 has_powershell() {
-    grep -qsxF powershell "$PFX/winetricks.log" || [ -f "$STATE_DIR/powershell.done" ]
+    grep -qsxF powershell "$PFX/winetricks.log"
 }
 
 has_launcher() {
@@ -209,8 +209,7 @@ ensure_protontricks() {
 install_powershell() {
     echo "Установка powershell в префикс GTA V ($APPID)..."
     protontricks "$APPID" powershell || die "Не удалось установить powershell в префикс."
-    mkdir -p "$STATE_DIR"
-    touch "$STATE_DIR/powershell.done"
+    has_powershell || die "powershell не появился в winetricks.log, установка не удалась. Проверьте, что protontricks установлен не через Flatpak, и запустите скрипт снова."
 }
 
 install_launcher() {
