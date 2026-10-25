@@ -18,7 +18,7 @@ chmod +x majestic-linux/majestic-linux
 ./majestic-linux/majestic-linux
 ```
 
-Следуйте инструкциям внутри скрипта. В случае возникновения проблем можете связаться ко мне в Discord: qustsu
+Следуйте инструкциям внутри скрипта. В случае возникновения проблем можете связаться ко мне в Discord: `qustsu`
 
 ## ❔FaQ (ЧАВО)
 <details>
@@ -26,7 +26,7 @@ chmod +x majestic-linux/majestic-linux
 
 Это очень просто решается.
 
-1. Запустите protontricks удобным для вайс способом (Не FlatPak версию!)
+1. Запустите protontricks удобным для вас способом (Не FlatPak версию!)
 2. Выберите из списка "Gtand Theft Auto 5 Legacy: 271590"
 3. Из следующего списка выберите "Select the default wineprefix"
 4. Выберите "Run explorer"
@@ -73,7 +73,7 @@ Comment=Majestic Launcher
 Exec=bash -c '"$HOME/majestic-linux/majestic-linux"'
 # Иконка ярлыка
 Icon=steam_icon_271590
-Terminal=true
+Terminal=false
 Type=Application
 Categories=Game;
 ```
@@ -88,3 +88,4 @@ Categories=Game;
 - [Donatty](https://donatty.com/qustsubush)
 ## 🙏 Особая благодарность
 - [majestic-rp-linux-runner](https://github.com/digitalhorizongroup/majestic-rp-linux) - помог в исследовании прицнципа работы majestic лаунчера.
+- Emoji artwork: Twemoji (Twitter, Inc. and contributors), CC-BY 4.0; font: Mozilla twemoji-colr, Apache 2.0.
