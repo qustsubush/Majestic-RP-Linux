@@ -15,6 +15,7 @@ PFX="$STEAM_ROOT/steamapps/compatdata/$APPID/pfx"
 LAUNCHER="$PFX/drive_c/users/steamuser/AppData/Local/MajesticLauncher/Majestic Launcher.exe"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/majestic-linux"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/majestic-linux"
+LOCALE_SHIM="$CACHE_DIR/nolcall.so"
 
 LAUNCHER_PROC='^[A-Za-z]:\\.*Majestic Launcher\.exe'
 
@@ -284,30 +285,49 @@ find_proton() {
     printf '%s\n' "$p"
 }
 
+ensure_locale_shim() {
+    [ -f "$LOCALE_SHIM" ] && return 0
+
+    if ! command -v gcc >/dev/null 2>&1; then
+        echo "Предупреждение: gcc не найден, русский ввод в игре может не работать." >&2
+        return 0
+    fi
+
+    mkdir -p "$CACHE_DIR"
+    local src="$CACHE_DIR/nolcall.c"
+    cat > "$src" <<'EOF'
+#include <stdlib.h>
+__attribute__((constructor)) static void fix_locale(void) {
+    const char *v = getenv("LC_ALL");
+    if (v && v[0] == 'C' && v[1] == '\0')
+        unsetenv("LC_ALL");
+}
+EOF
+
+    echo "Собираю вспомогательную библиотеку для русского ввода..."
+    if ! gcc -shared -fPIC -O2 -o "$LOCALE_SHIM" "$src"; then
+        echo "Предупреждение: не удалось собрать библиотеку, русский ввод в игре может не работать." >&2
+        rm -f "$LOCALE_SHIM"
+    fi
+    rm -f "$src"
+}
+
 launch_launcher() {
-    pgrep -x steam >/dev/null 2>&1 ||
-        die "Steam не запущен. Запустите Steam, войдите в аккаунт и повторите."
-
-    local proton
-    proton=$(find_proton) ||
-        die "Proton Experimental не найден. Установите его в Steam и выберите для GTA V."
-
     has_launcher || die "Лаунчер не установлен: $LAUNCHER"
 
     ln -sfn "$STEAM_ROOT" "$PFX/dosdevices/s:"
 
     mkdir -p "$STATE_DIR"
+    ensure_locale_shim
+
+    local -a preload_env=()
+    if [ -f "$LOCALE_SHIM" ]; then
+        preload_env=(env "LD_PRELOAD=$LOCALE_SHIM${LD_PRELOAD:+:$LD_PRELOAD}")
+    fi
+
     echo "Запускаю Majestic Launcher. Лог: $STATE_DIR/launcher.log"
 
-    env \
-        STEAM_COMPAT_CLIENT_INSTALL_PATH="$STEAM_ROOT" \
-        STEAM_COMPAT_DATA_PATH="$STEAM_ROOT/steamapps/compatdata/$APPID" \
-        STEAM_COMPAT_INSTALL_PATH="$STEAM_ROOT/steamapps/common/$GTA_DIR_NAME" \
-        STEAM_COMPAT_LIBRARY_PATHS="$STEAM_ROOT/steamapps" \
-        STEAM_COMPAT_MOUNTS="$STEAM_ROOT" \
-        STEAM_COMPAT_APP_ID="$APPID" \
-        SteamAppId="$APPID" SteamGameId="$APPID" \
-        "$proton" run "$LAUNCHER" -disable-gpu \
+    "${preload_env[@]}" protontricks-launch --appid "$APPID" "$LAUNCHER" -disable-gpu \
         </dev/null 2>&1 | tee "$STATE_DIR/launcher.log" || true
 }
 
