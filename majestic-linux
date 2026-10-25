@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+export FC_FONTATIONS=0
+
 APPID=271590
 GTA_DIR_NAME="Grand Theft Auto V"
 SETUP_URL="https://cdn.majestic-files.net/launcher/cis/MajesticLauncherSetup.exe"
@@ -16,6 +18,105 @@ LAUNCHER="$PFX/drive_c/users/steamuser/AppData/Local/MajesticLauncher/Majestic L
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/majestic-linux"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/majestic-linux"
 LOCALE_SHIM="$CACHE_DIR/nolcall.so"
+
+EMOJI_FONT_URL="https://github.com/mozilla/twemoji-colr/releases/download/v0.7.0/Twemoji.Mozilla.ttf"
+EMOJI_FONT_SHA256="6d90152ee0d29e82fe2a87793af5aa4b7ad13e6538360889e141e81ed299ee8e"
+EMOJI_SRC="$CACHE_DIR/Twemoji.Mozilla.ttf"
+EMOJI_DST="$PFX/drive_c/windows/Fonts/seguiemj.ttf"
+
+has_emoji() {
+    [ -s "$EMOJI_DST" ] && grep -qsiF 'seguiemj.ttf' "$PFX/system.reg"
+}
+
+find_fonttools_python() {
+    local py
+    for py in /usr/bin/python3 /usr/bin/python python3 python; do
+        command -v "$py" >/dev/null 2>&1 || continue
+        if "$py" -c 'import fontTools' >/dev/null 2>&1; then
+            command -v "$py"
+            return 0
+        fi
+    done
+    return 1
+}
+
+install_emoji() {
+    local py
+    if ! py=$(find_fonttools_python); then
+        echo "Предупреждение: не найден Python с модулем fontTools, эмодзи в лаунчере показываться не будут." >&2
+        echo "Установите пакет (Arch: python-fonttools, Debian/Ubuntu/Fedora: python3-fonttools) и запустите скрипт снова." >&2
+        return 0
+    fi
+
+    mkdir -p "$CACHE_DIR" "$PFX/drive_c/windows/Fonts" "$PFX/drive_c/majestic"
+
+    if [ ! -s "$EMOJI_SRC" ]; then
+        echo "Скачиваю emoji-шрифт (Twemoji Mozilla)..."
+        if ! curl -fL --progress-bar -o "$EMOJI_SRC" "$EMOJI_FONT_URL"; then
+            echo "Предупреждение: не удалось скачать emoji-шрифт." >&2
+            rm -f "$EMOJI_SRC"
+            return 0
+        fi
+    fi
+    if ! printf '%s  %s\n' "$EMOJI_FONT_SHA256" "$EMOJI_SRC" | sha256sum -c --quiet - >/dev/null 2>&1; then
+        echo "Предупреждение: контрольная сумма emoji-шрифта не совпала, пропускаю." >&2
+        rm -f "$EMOJI_SRC"
+        return 0
+    fi
+
+    kill_launcher
+
+    local script="$CACHE_DIR/rename_emoji.py"
+    cat > "$script" <<'PYEOF'
+import sys
+from fontTools.ttLib import TTFont
+
+src, dst = sys.argv[1], sys.argv[2]
+font = TTFont(src)
+name = font["name"]
+
+def put(name_id, text):
+    name.removeNames(nameID=name_id)
+    name.setName(text, name_id, 3, 1, 0x409)
+    name.setName(text, name_id, 1, 0, 0)
+
+put(0, "Emoji artwork: Twemoji, Copyright Twitter, Inc and other contributors, CC-BY 4.0. "
+       "Font: Mozilla twemoji-colr, Apache 2.0. Modified: family name changed.")
+put(1, "Segoe UI Emoji")
+put(2, "Regular")
+put(3, "Local rename of Twemoji Mozilla 0.7.0")
+put(4, "Segoe UI Emoji")
+put(6, "SegoeUIEmoji")
+put(13, "Emoji artwork licensed under CC-BY 4.0; font code under Apache License 2.0.")
+put(14, "https://creativecommons.org/licenses/by/4.0/")
+font.save(dst)
+PYEOF
+    if ! "$py" "$script" "$EMOJI_SRC" "$EMOJI_DST"; then
+        echo "Предупреждение: не удалось подготовить emoji-шрифт." >&2
+        rm -f "$script" "$EMOJI_DST"
+        return 0
+    fi
+    rm -f "$script"
+
+    cat > "$PFX/drive_c/majestic/emoji.reg" <<'EOF'
+Windows Registry Editor Version 5.00
+
+[HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Fonts]
+"Segoe UI Emoji (TrueType)"="seguiemj.ttf"
+EOF
+    if ! protontricks -c 'wine regedit "C:\\majestic\\emoji.reg"' "$APPID"; then
+        echo "Предупреждение: не удалось записать emoji-шрифт в реестр." >&2
+        return 0
+    fi
+
+    local i
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+        has_emoji && return 0
+        sleep 1
+    done
+    echo "Предупреждение: emoji-шрифт не зарегистрировался в реестре префикса." >&2
+    return 0
+}
 
 LAUNCHER_PROC='^[A-Za-z]:\\.*Majestic Launcher\.exe'
 
@@ -345,8 +446,8 @@ main() {
             echo "Majestic Launcher уже запущен."
             exit 0
         fi
+        has_emoji || install_emoji
         launch_launcher
-        echo "Majestic Launcher запущен. Лог: $STATE_DIR/launcher.log"
         exit 0
     fi
 
