@@ -507,8 +507,6 @@ main() {
     [ -d "$PFX" ] ||
         die "Префикс GTA V не найден. Запустите GTA V один раз через Steam (Proton Experimental) и повторите."
 
-    echo "majestic-linux $VERSION"
-
     if all_set; then
         if launcher_running; then
             echo "Majestic Launcher уже запущен."
