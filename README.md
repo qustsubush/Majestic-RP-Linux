@@ -87,5 +87,5 @@ Categories=Game;
 
 - [Donatty](https://donatty.com/qustsubush)
 ## 🙏 Особая благодарность
-- [majestic-rp-linux-runner](https://github.com/digitalhorizongroup/majestic-rp-linux) - помог в исследовании прицнципа работы majestic лаунчера.
+- [majestic-rp-linux-runner](https://github.com/digitalhorizongroup/majestic-rp-linux) - помог в исследовании принципа работы majestic лаунчера.
 - Emoji artwork: Twemoji (Twitter, Inc. and contributors), CC-BY 4.0; font: Mozilla twemoji-colr, Apache 2.0.
